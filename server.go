@@ -30,6 +30,7 @@ type options struct {
 	onClose    onCloseFunc
 	onError    onErrorFunc
 	workerSize int  // numbers of worker go-routines
+	maxConns   int  // numbers of max connections
 	bufferSize int  // size of buffered channel
 	reconnect  bool // for ClientConn use only
 }
@@ -56,6 +57,13 @@ func CustomCodecOption(codec Codec) ServerOption {
 func TLSCredsOption(config *tls.Config) ServerOption {
 	return func(o *options) {
 		o.tlsCfg = config
+	}
+}
+
+// MaxConnsOption returns a ServerOption that will set the number of  max connections.
+func MaxConnsOption(maxConns int) ServerOption {
+	return func(o *options) {
+		o.maxConns = maxConns
 	}
 }
 
@@ -138,6 +146,9 @@ func NewServer(opt ...ServerOption) *Server {
 	}
 	if opts.bufferSize <= 0 {
 		opts.bufferSize = BufferSize256
+	}
+	if opts.maxConns <= 0 {
+		opts.maxConns = MaxConnections
 	}
 
 	// initiates go-routine pool instance
@@ -256,7 +267,7 @@ func (s *Server) Start(l net.Listener) error {
 
 		// how many connections do we have ?
 		sz := s.ConnsSize()
-		if sz >= MaxConnections {
+		if sz >= s.opts.maxConns {
 			holmes.Warnf("max connections size %d, refuse\n", sz)
 			rawConn.Close()
 			continue
